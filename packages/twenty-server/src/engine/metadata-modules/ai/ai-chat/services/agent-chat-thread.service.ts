@@ -386,6 +386,13 @@ export class AgentChatThreadService {
   }: AgentChatThreadAccessArgs & {
     isAssistantParticipant: boolean;
   }): Promise<boolean> {
+    const canStoreAssistantParticipation =
+      await this.sharingService.hasAssistantParticipation(args.workspaceId);
+
+    if (!canStoreAssistantParticipation) {
+      return this.isInitialMessage(args);
+    }
+
     const thread = await this.getWritableThread(args);
     const updatedThreads = await this.threadRepository.query(
       args.workspaceId,
@@ -423,7 +430,7 @@ export class AgentChatThreadService {
     messageId,
     ...args
   }: AgentChatThreadAccessArgs & {
-    messageId: string;
+    messageId?: string;
   }): Promise<boolean> {
     await this.getWritableThread(args);
     const [messageState] = await this.threadRepository.query(
