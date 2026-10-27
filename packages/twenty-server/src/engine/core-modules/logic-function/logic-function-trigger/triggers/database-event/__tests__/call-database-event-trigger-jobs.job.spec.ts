@@ -167,6 +167,7 @@ describe('CallDatabaseEventTriggerJobsJob', () => {
         byId: {
           [APPLICATION_ID]: {
             id: APPLICATION_ID,
+            universalIdentifier: APPLICATION_ID,
             applicationRegistrationId: 'application-registration-id',
             defaultRoleId: APPLICATION_ROLE_ID,
             deletedAt: null,
@@ -249,6 +250,8 @@ describe('CallDatabaseEventTriggerJobsJob', () => {
             payload: expect.objectContaining(event),
           }),
           jobId: `${TRIGGER_JOB_ID}.${LOGIC_FUNCTION_ID}.0`,
+          workspaceId: WORKSPACE_ID,
+          applicationUniversalIdentifier: APPLICATION_ID,
         },
       ],
       expect.anything(),

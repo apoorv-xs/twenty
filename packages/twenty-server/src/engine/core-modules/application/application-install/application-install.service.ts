@@ -563,6 +563,7 @@ export class ApplicationInstallService {
       await this.enqueueLogicFunctionWarmUp({
         workspaceId: params.workspaceId,
         applicationId: application.id,
+        applicationUniversalIdentifier: universalIdentifier,
         logicFunctionUniversalIdentifiers:
           findLogicFunctionUniversalIdentifiersToWarmUp(workspaceMigration),
       });
@@ -683,10 +684,12 @@ export class ApplicationInstallService {
   private async enqueueLogicFunctionWarmUp({
     workspaceId,
     applicationId,
+    applicationUniversalIdentifier,
     logicFunctionUniversalIdentifiers,
   }: {
     workspaceId: string;
     applicationId: string;
+    applicationUniversalIdentifier: string;
     logicFunctionUniversalIdentifiers: string[];
   }): Promise<void> {
     if (logicFunctionUniversalIdentifiers.length === 0) {
@@ -703,6 +706,8 @@ export class ApplicationInstallService {
               applicationId,
               logicFunctionUniversalIdentifier,
             },
+            workspaceId,
+            applicationUniversalIdentifier,
           }),
         ),
         WARM_UP_LOGIC_FUNCTION_JOB_OPTIONS,
@@ -799,6 +804,8 @@ export class ApplicationInstallService {
           payload,
         },
         {
+          workspaceId,
+          applicationUniversalIdentifier: universalIdentifier,
           retryLimit: 3,
           backoff: LOGIC_FUNCTION_QUEUE_RETRY_BACKOFF,
         },

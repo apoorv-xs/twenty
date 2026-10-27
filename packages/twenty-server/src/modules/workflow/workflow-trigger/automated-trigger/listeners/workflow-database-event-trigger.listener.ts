@@ -1,6 +1,7 @@
 import { buildCoreDispatchIds } from 'src/engine/core-modules/workflow/utils/build-core-dispatch-ids.util';
 import { Injectable, Logger } from '@nestjs/common';
 
+import { TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER } from 'twenty-shared/application';
 import {
   ObjectRecordEvent,
   type ObjectRecordCreateEvent,
@@ -430,7 +431,12 @@ export class WorkflowDatabaseEventTriggerListener {
               ...buildCoreDispatchIds(eventListener),
               payload: omitInheritedReadabilityChildRecords(eventPayload),
             },
-            { retryLimit: 3 },
+            {
+              retryLimit: 3,
+              workspaceId,
+              applicationUniversalIdentifier:
+                TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+            },
           );
         }
       }

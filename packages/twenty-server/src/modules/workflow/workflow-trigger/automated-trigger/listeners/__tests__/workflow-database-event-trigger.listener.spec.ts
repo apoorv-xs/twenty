@@ -291,7 +291,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: mockPayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -428,7 +433,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: createPayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -474,7 +484,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
               properties: { after: record },
             },
           },
-          { retryLimit: 3 },
+          {
+            retryLimit: 3,
+            workspaceId,
+            applicationUniversalIdentifier:
+              TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+          },
         );
 
       beforeEach(() => {
@@ -597,7 +612,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: deletePayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -636,7 +656,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
             properties: { before: { field1: 'old', field2: 'old' } },
           },
         }),
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -675,7 +700,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: destroyPayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -765,7 +795,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
       expect(messageQueueService.add).toHaveBeenCalledWith(
         WorkflowTriggerJob.name,
         expect.objectContaining({ payload: privatePayload.events[1] }),
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -863,7 +898,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: batchPayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
       expect(messageQueueService.add).toHaveBeenNthCalledWith(
         2,
@@ -875,7 +915,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: batchPayload.events[1],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 
@@ -915,7 +960,12 @@ describe('WorkflowDatabaseEventTriggerListener', () => {
           workspaceWorkflowVersionId: `workspace-version-${workflowId}`,
           payload: positionOnlyPayload.events[0],
         },
-        { retryLimit: 3 },
+        {
+          retryLimit: 3,
+          workspaceId,
+          applicationUniversalIdentifier:
+            TWENTY_STANDARD_APPLICATION_UNIVERSAL_IDENTIFIER,
+        },
       );
     });
 

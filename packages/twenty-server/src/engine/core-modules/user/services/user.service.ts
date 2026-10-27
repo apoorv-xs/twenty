@@ -610,6 +610,7 @@ export class UserService {
       data,
       {
         retryLimit: 2,
+        isSystemJob: true,
       },
     );
   }

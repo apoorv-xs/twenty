@@ -16,13 +16,15 @@ import {
   Worker,
 } from 'bullmq';
 import { type JobState as BullMQJobState } from 'bullmq/dist/esm/types';
-import { isDefined, isNonEmptyArray } from 'twenty-shared/utils';
+import { isDefined } from 'twenty-shared/utils';
 import { v4 } from 'uuid';
 
 import {
   type QueueCronJobOptions,
   type QueueJobOptions,
   type QueueJobRecipient,
+  type QueueJobScope,
+  type QueueJobSettings,
 } from 'src/engine/core-modules/message-queue/drivers/interfaces/job-options.interface';
 import {
   type InFlightQueueJob,
@@ -45,8 +47,8 @@ import { type QueueJobChangedEvent } from 'src/engine/core-modules/message-queue
 import { getJobKey } from 'src/engine/core-modules/message-queue/utils/get-job-key.util';
 import { buildQueueJobIdWithSuffix } from 'src/engine/core-modules/message-queue/utils/build-queue-job-id-with-suffix.util';
 import { computeJobQueueWaitMs } from 'src/engine/core-modules/message-queue/utils/compute-job-queue-wait-ms.util';
+import { buildQueueJobGroupKeys } from 'src/engine/core-modules/message-queue/utils/build-queue-job-group-keys.util';
 import { computeFairPriority } from 'src/engine/core-modules/message-queue/utils/compute-fair-priority.util';
-import { getDefaultGroupKeys } from 'src/engine/core-modules/message-queue/utils/get-default-group-keys.util';
 import { isQueueJobIdAlreadyWaiting } from 'src/engine/core-modules/message-queue/utils/is-queue-job-id-already-waiting.util';
 import { JOB_LATENCY_MS_BUCKET_BOUNDARIES } from 'src/engine/core-modules/metrics/constants/job-latency-ms-bucket-boundaries.constant';
 import { type MetricsService } from 'src/engine/core-modules/metrics/metrics.service';
@@ -397,18 +399,18 @@ export class BullMQDriver
   // A delayed job is ranked once it is due, so it is neither ticketed nor charged at enqueue
   private async computeFairPriorities({
     queueName,
-    jobsData,
-    options,
+    scopes,
+    delay,
   }: {
     queueName: MessageQueue;
-    jobsData: unknown[];
-    options?: Pick<QueueJobOptions, 'groupKeys' | 'delay'>;
+    scopes: QueueJobScope[];
+    delay: number | undefined;
   }): Promise<(number | undefined)[]> {
-    const staticPriorities: (number | undefined)[] = jobsData.map(
+    const staticPriorities: (number | undefined)[] = scopes.map(
       () => undefined,
     );
 
-    if (!this.isFairnessEnabled() || (options?.delay ?? 0) > 0) {
+    if (!this.isFairnessEnabled() || (delay ?? 0) > 0) {
       return staticPriorities;
     }
 
@@ -418,10 +420,8 @@ export class BullMQDriver
       (typeof reservations)[number]
     >();
 
-    jobsData.forEach((jobData, jobIndex) => {
-      const groupKeys = isNonEmptyArray(options?.groupKeys)
-        ? [...new Set(options.groupKeys)]
-        : getDefaultGroupKeys(jobData);
+    scopes.forEach((scope, jobIndex) => {
+      const groupKeys = buildQueueJobGroupKeys(scope);
       const signature = groupKeys.join('\u0000');
       const reservation = reservationBySignature.get(signature) ?? {
         groupKeys,
@@ -557,7 +557,7 @@ export class BullMQDriver
     return broadcastTo;
   }
 
-  private buildJobsOptions(options?: QueueJobOptions): BullMQJobsOptions {
+  private buildJobsOptions(options?: QueueJobSettings): BullMQJobsOptions {
     return {
       jobId: options?.id
         ? buildQueueJobIdWithSuffix({ jobIdPrefix: options.id, suffix: v4() })
@@ -589,7 +589,7 @@ export class BullMQDriver
     queueName: MessageQueue,
     jobName: string,
     data: T,
-    options?: QueueJobOptions,
+    options: QueueJobOptions,
   ): Promise<string | undefined> {
     if (!this.queueMap[queueName]) {
       throw new Error(
@@ -597,7 +597,7 @@ export class BullMQDriver
       );
     }
 
-    if (options?.id && !options?.doNotCheckDuplicatesBasedOnPrefix) {
+    if (options.id && !options.doNotCheckDuplicatesBasedOnPrefix) {
       const waitingJobIds = await this.getWaitingJobIds(queueName);
 
       if (
@@ -610,8 +610,8 @@ export class BullMQDriver
     const queueOptions = this.buildJobsOptions(options);
     const [fairPriority] = await this.computeFairPriorities({
       queueName,
-      jobsData: [data],
-      options,
+      scopes: [options],
+      delay: options.delay,
     });
 
     const job = await this.queueMap[queueName].add(
@@ -652,7 +652,7 @@ export class BullMQDriver
     queueName: MessageQueue,
     jobName: string,
     jobs: QueueJobToAdd<T>[],
-    options?: QueueJobOptions,
+    options?: QueueJobSettings,
   ): Promise<string[]> {
     if (!this.queueMap[queueName]) {
       throw new Error(
@@ -671,8 +671,8 @@ export class BullMQDriver
     const queueOptions = this.buildJobsOptions(options);
     const fairPriorities = await this.computeFairPriorities({
       queueName,
-      jobsData: jobsToAdd.map(({ data }) => data),
-      options,
+      scopes: jobsToAdd,
+      delay: options?.delay,
     });
 
     const addedJobs = await this.queueMap[queueName].addBulk(
