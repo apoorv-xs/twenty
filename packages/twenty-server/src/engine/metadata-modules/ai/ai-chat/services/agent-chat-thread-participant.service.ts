@@ -210,9 +210,11 @@ export class AgentChatThreadParticipantService {
 
   async moveMembersToInbox({
     participantWorkspaceMemberIds,
+    isMention = false,
     ...args
   }: AgentChatThreadAccessArgs & {
     participantWorkspaceMemberIds: string[];
+    isMention?: boolean;
   }): Promise<AgentChatThreadParticipantRow[]> {
     const memberIds = [...new Set(participantWorkspaceMemberIds)]
       .filter((memberId) => memberId !== args.workspaceMemberId)
@@ -262,9 +264,12 @@ export class AgentChatThreadParticipantService {
         );
         const after = await manager.query<AgentChatThreadParticipantRow[]>(
           doNotTranslate(`WITH written_participant AS (
-          INSERT INTO ${participantTable} AS participant ("threadId", "workspaceMemberId")
-          SELECT $1, member_id FROM unnest($2::uuid[]) member_id
+          INSERT INTO ${participantTable} AS participant ("threadId", "workspaceMemberId", "lastMentionedAt")
+          SELECT $1, member_id, CASE WHEN $4::boolean THEN clock_timestamp() END
+          FROM unnest($2::uuid[]) member_id
           ON CONFLICT ("threadId", "workspaceMemberId") DO UPDATE SET
+            "lastReadAt" = CASE WHEN $4::boolean THEN NULL ELSE participant."lastReadAt" END,
+            "lastMentionedAt" = CASE WHEN $4::boolean THEN EXCLUDED."lastMentionedAt" ELSE participant."lastMentionedAt" END,
             "archivedAt" = NULL, "snoozedUntil" = NULL, "isSubscribed" = true, "updatedAt" = now()
           RETURNING *
         ), owner_share AS (
@@ -274,7 +279,7 @@ export class AgentChatThreadParticipantService {
             objectMetadataIdParameter: '$3',
           })}
         ) SELECT ${PARTICIPANT_COLUMNS} FROM written_participant`),
-          [args.threadId, memberIds, objectMetadataId],
+          [args.threadId, memberIds, objectMetadataId, isMention],
         );
         const beforeByMemberId = new Map(
           before.map((participant) => [
