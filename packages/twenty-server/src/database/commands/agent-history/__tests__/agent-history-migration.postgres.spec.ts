@@ -1,4 +1,4 @@
-import { AddChatMentionResolutionCommand } from 'src/database/commands/upgrade-version-command/2-53/2-53-workspace-command-1793111675536-add-chat-mention-resolution.command';
+import { AddChatMentionResolutionCommand } from 'src/database/commands/upgrade-version-command/2-53/2-53-workspace-command-1793179923518-add-chat-mention-resolution.command';
 import { WorkspaceSchemaEnumManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-enum-manager.service';
 import {
   collectEnumOperationsForObject,
