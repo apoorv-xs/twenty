@@ -3,7 +3,7 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
 import { SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 
-@RegisteredInstanceCommand('2.53.0', 1793195872788, { type: 'slow' })
+@RegisteredInstanceCommand('2.53.0', 1793203294143, { type: 'slow' })
 export class DropDeletedAtFromAgentIndexesSlowInstanceCommand implements SlowInstanceCommand {
   // Soft-deleted agents are already hidden; without the filter they would come back live
   async runDataMigration(dataSource: DataSource): Promise<void> {
