@@ -91,11 +91,7 @@ describe('Assistant reply selection with stored conversation participants', () =
     'uses JEV probability $probability for a group message',
     async ({ probability, shouldAnswer }) => {
       models.enableEvaluation();
-      models.evaluate.mockResolvedValue({
-        answers: { shouldAssistantReply: { type: 'boolean', probability } },
-        usage: { inputTokens: 1, outputTokens: 0 },
-        warnings: [],
-      });
+      models.setReplyProbability(probability);
       const threadId = await createGroup();
 
       await expect(shouldReply({ threadId })).resolves.toBe(shouldAnswer);
