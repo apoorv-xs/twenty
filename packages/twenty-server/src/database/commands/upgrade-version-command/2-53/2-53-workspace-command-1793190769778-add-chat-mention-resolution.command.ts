@@ -24,7 +24,7 @@ const RESOLVED_MENTION_FIELD_UNIVERSAL_IDENTIFIER =
     .universalIdentifier;
 const PARTICIPANT_BATCH_SIZE = 1000;
 
-@RegisteredWorkspaceCommand('2.53.0', 1793179923518)
+@RegisteredWorkspaceCommand('2.53.0', 1793190769778)
 @Command({
   name: 'upgrade:2-53:add-chat-mention-resolution',
   description:
