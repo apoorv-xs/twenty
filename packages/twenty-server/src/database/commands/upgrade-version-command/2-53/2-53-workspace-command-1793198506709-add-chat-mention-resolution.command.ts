@@ -23,7 +23,7 @@ const RESOLVED_MENTION_FIELD_UNIVERSAL_IDENTIFIER =
   STANDARD_OBJECTS.agentChatThreadParticipant.fields.lastResolvedMentionAt
     .universalIdentifier;
 
-@RegisteredWorkspaceCommand('2.53.0', 1793190769778)
+@RegisteredWorkspaceCommand('2.53.0', 1793198506709)
 @Command({
   name: 'upgrade:2-53:add-chat-mention-resolution',
   description: 'Track resolved chat mentions and end due snoozes',

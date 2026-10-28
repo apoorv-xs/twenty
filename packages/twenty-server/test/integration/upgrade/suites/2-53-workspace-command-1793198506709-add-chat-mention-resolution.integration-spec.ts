@@ -5,7 +5,7 @@ import { isDefined } from 'twenty-shared/utils';
 
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 
-import { type AddChatMentionResolutionCommand } from 'src/database/commands/upgrade-version-command/2-53/2-53-workspace-command-1793190769778-add-chat-mention-resolution.command';
+import { type AddChatMentionResolutionCommand } from 'src/database/commands/upgrade-version-command/2-53/2-53-workspace-command-1793198506709-add-chat-mention-resolution.command';
 import { type AgentChatSharingService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-sharing.service';
 import { AiExceptionCode } from 'src/engine/metadata-modules/ai/ai.exception';
 import { type WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
