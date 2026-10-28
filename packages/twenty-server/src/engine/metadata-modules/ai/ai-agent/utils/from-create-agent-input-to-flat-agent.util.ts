@@ -63,7 +63,6 @@ export const fromCreateAgentInputToFlatAgent = ({
     triggers: createAgentInput.triggers ?? [],
     createdAt,
     updatedAt: createdAt,
-    deletedAt: null,
   };
 
   let flatRoleTargetToCreate: FlatRoleTarget | null = null;

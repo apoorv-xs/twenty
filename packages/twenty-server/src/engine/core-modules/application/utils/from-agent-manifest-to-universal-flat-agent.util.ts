@@ -41,6 +41,5 @@ export const fromAgentManifestToUniversalFlatAgent = ({
     overrides: null,
     createdAt: now,
     updatedAt: now,
-    deletedAt: null,
   };
 };

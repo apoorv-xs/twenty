@@ -145,7 +145,6 @@ const AGENT: FlatAgent = {
   isSystem: true,
   isActive: true,
   overrides: null,
-  deletedAt: null,
 };
 
 const SKILL: FlatSkill = {

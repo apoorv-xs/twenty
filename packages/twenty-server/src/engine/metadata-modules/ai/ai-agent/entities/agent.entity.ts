@@ -1,7 +1,6 @@
 import {
   Column,
   CreateDateColumn,
-  DeleteDateColumn,
   Entity,
   Index,
   PrimaryGeneratedColumn,
@@ -34,10 +33,8 @@ export type AgentOverrides = {
 };
 
 @Entity('agent')
-@Index('IDX_AGENT_ID_DELETED_AT', ['id', 'deletedAt'])
 @Index('IDX_AGENT_NAME_WORKSPACE_ID_UNIQUE', ['name', 'workspaceId'], {
   unique: true,
-  where: '"deletedAt" IS NULL',
 })
 export class AgentEntity
   extends OverridableEntity<AgentOverrides>
@@ -88,8 +85,8 @@ export class AgentEntity
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 
-  @DeleteDateColumn({ type: 'timestamptz' })
-  deletedAt: Date | null;
+  @Column({ nullable: true, type: 'timestamptz' })
+  deletedAt: WasRemovedInUpgrade<Date | null>;
 
   @Column({ nullable: true, type: 'jsonb' })
   modelConfiguration: JsonbProperty<ModelConfiguration> | null;

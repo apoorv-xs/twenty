@@ -134,11 +134,6 @@ export const reconstructAgentsManifest = ({
   for (const flatAgent of sortFlatEntitiesByUniversalIdentifier(
     applicationAllFlatEntityMaps.flatAgentMaps,
   )) {
-    // Left to the classifier, which reports soft-deleted entities as excluded
-    if (isDefined(flatAgent.deletedAt)) {
-      continue;
-    }
-
     const conversion = convertFlatAgent({
       flatAgent,
       flatRoleTargets:
