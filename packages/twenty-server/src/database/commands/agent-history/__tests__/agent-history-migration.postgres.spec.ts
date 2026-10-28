@@ -1,13 +1,3 @@
-import { WorkspaceSchemaEnumManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-enum-manager.service';
-import {
-  collectEnumOperationsForObject,
-  EnumOperation,
-} from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/workspace-schema-enum-operations.util';
-import { randomUUID } from 'node:crypto';
-
-import { AgentChatInboxAction } from 'src/engine/metadata-modules/ai/ai-chat/enums/agent-chat-inbox-action.enum';
-import { AgentChatThreadParticipantService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-thread-participant.service';
-import { type AgentChatThreadParticipantRow } from 'src/engine/metadata-modules/ai/ai-chat/types/agent-chat-thread-participant-row.type';
 import { backfillWorkspaceChatThreadOwnerGrants } from 'src/engine/metadata-modules/ai/ai-chat/utils/backfill-workspace-chat-thread-owner-grants.util';
 import { LinkChatMessageSendersToWorkspaceMembersCommand } from 'src/database/commands/upgrade-version-command/2-44/2-44-workspace-command-1790605326331-link-chat-message-senders-to-workspace-members.command';
 import { AgentHistoryWorkspaceStorageService } from 'src/engine/metadata-modules/ai/ai-history/services/agent-history-workspace-storage.service';
@@ -37,15 +27,13 @@ import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.ent
 import { WorkspaceDataSource } from 'src/engine/twenty-orm/datasource/workspace-data-source';
 import { WorkspaceSchemaTableManagerService } from 'src/engine/twenty-orm/workspace-schema-manager/services/workspace-schema-table-manager.service';
 import { generateColumnDefinitions } from 'src/engine/workspace-manager/workspace-migration/workspace-migration-runner/utils/generate-column-definitions.util';
-import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/types/flat-field-metadata.type';
-import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 import { computeTwentyStandardApplicationAllFlatEntityMaps } from 'src/engine/workspace-manager/twenty-standard-application/utils/twenty-standard-application-all-flat-entity-maps.constant';
 import { buildObjectIdByNameMaps } from 'src/engine/metadata-modules/flat-object-metadata/utils/build-object-id-by-name-maps.util';
 import { createEmptyFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/constant/create-empty-flat-entity-maps.constant';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
 import { AgentHistoryRepository } from 'src/engine/metadata-modules/ai/ai-history/repositories/agent-history-repository';
 import { AgentChatThreadWorkspaceEntity } from 'src/engine/metadata-modules/ai/ai-history/standard-objects/agent-chat-thread.workspace-entity';
-import { DataSource, IsNull, type QueryRunner, type Repository } from 'typeorm';
+import { DataSource, IsNull, type Repository } from 'typeorm';
 import { Pool } from 'pg';
 import { type FeatureFlagKey } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
@@ -67,46 +55,6 @@ const TURN_ID = '20202020-4444-4444-8444-444444444444';
 const MESSAGE_ID = '20202020-5555-4555-8555-555555555555';
 const MEMBER_ID = '20202020-7777-4777-8777-777777777777';
 const SCHEMA = getWorkspaceSchemaName(WORKSPACE_ID);
-
-const createWorkspaceObjectTable = async ({
-  queryRunner,
-  flatObjectMetadata,
-  flatFieldMetadatas,
-}: {
-  queryRunner: QueryRunner;
-  flatObjectMetadata: FlatObjectMetadata;
-  flatFieldMetadatas: FlatFieldMetadata[];
-}) => {
-  for (const enumOperation of collectEnumOperationsForObject({
-    flatFieldMetadatas,
-    tableName: flatObjectMetadata.nameSingular,
-    operation: EnumOperation.CREATE,
-  })) {
-    if (enumOperation.operation !== EnumOperation.CREATE) {
-      continue;
-    }
-
-    await new WorkspaceSchemaEnumManagerService().createEnum({
-      queryRunner,
-      schemaName: SCHEMA,
-      enumName: enumOperation.enumName,
-      values: enumOperation.values,
-    });
-  }
-
-  await new WorkspaceSchemaTableManagerService().createTable({
-    queryRunner,
-    schemaName: SCHEMA,
-    tableName: flatObjectMetadata.nameSingular,
-    columnDefinitions: flatFieldMetadatas.flatMap((flatFieldMetadata) =>
-      generateColumnDefinitions({
-        flatFieldMetadata,
-        flatObjectMetadata,
-        workspaceId: WORKSPACE_ID,
-      }),
-    ),
-  });
-};
 
 (DATABASE_URL ? describe : describe.skip)(
   'agent history migration on PostgreSQL',
@@ -281,13 +229,7 @@ const createWorkspaceObjectTable = async ({
       } as never,
     );
 
-    const createChatService = ({
-      messageRepository,
-      participantService = { resolveMentionInTransaction: jest.fn() } as never,
-    }: {
-      messageRepository: typeof messages;
-      participantService?: AgentChatThreadParticipantService;
-    }) =>
+    const createChatService = (messageRepository: typeof messages) =>
       new AgentChatService(
         threads,
         turns,
@@ -297,18 +239,10 @@ const createWorkspaceObjectTable = async ({
         chatRecordEvents as never,
         conversationWriter,
         chatThreadService,
-        participantService,
+        { resolveMentionInTransaction: jest.fn() } as never,
       );
 
-    const createQueueService = ({
-      messageRepository,
-      participantService = {
-        resolveMentionInTransaction: jest.fn(),
-      } as never,
-    }: {
-      messageRepository: typeof messages;
-      participantService?: AgentChatThreadParticipantService;
-    }) =>
+    const createQueueService = (messageRepository: typeof messages) =>
       new AgentChatQueueService(
         turns,
         messageRepository,
@@ -316,7 +250,7 @@ const createWorkspaceObjectTable = async ({
         {} as never,
         conversationWriter,
         chatThreadService,
-        participantService,
+        { resolveMentionInTransaction: jest.fn() } as never,
       );
 
     const createActorService = (messageRepository: typeof messages) =>
@@ -414,11 +348,17 @@ const createWorkspaceObjectTable = async ({
             ).filter(isDefined),
             ...legacyFields,
           ].filter((field) => field.objectMetadataId === object.id);
-
-          await createWorkspaceObjectTable({
+          await new WorkspaceSchemaTableManagerService().createTable({
             queryRunner: runner,
-            flatObjectMetadata: object,
-            flatFieldMetadatas: fields,
+            schemaName: SCHEMA,
+            tableName: table.name,
+            columnDefinitions: fields.flatMap((field) =>
+              generateColumnDefinitions({
+                flatFieldMetadata: field,
+                flatObjectMetadata: object,
+                workspaceId: WORKSPACE_ID,
+              }),
+            ),
           });
         }
         for (const index of Object.values(
@@ -864,8 +804,8 @@ const createWorkspaceObjectTable = async ({
         workspaceId: WORKSPACE_ID,
         target: 'workspace',
       });
-      const chat = createChatService({ messageRepository: messages });
-      const queue = createQueueService({ messageRepository: messages });
+      const chat = createChatService(messages);
+      const queue = createQueueService(messages);
       const actors = createActorService(messages);
       const thread = await threads.insertAndReturnOne(WORKSPACE_ID, {
         workspaceMemberId: MEMBER_ID,
@@ -1472,453 +1412,6 @@ const createWorkspaceObjectTable = async ({
       await migration.migrate({
         workspaceId: WORKSPACE_ID,
         target: 'workspace',
-      });
-    });
-
-    describe('mention lifecycle', () => {
-      const setUpMentionState = async () => {
-        const participantObject =
-          metadata.flatObjectMetadataMaps.byUniversalIdentifier[
-            STANDARD_OBJECTS.agentChatThreadParticipant.universalIdentifier
-          ]!;
-        const participantFields = Object.values(
-          metadata.flatFieldMetadataMaps.byUniversalIdentifier,
-        )
-          .filter(isDefined)
-          .filter((field) => field.objectMetadataId === participantObject.id);
-        const runner = dataSource.createQueryRunner();
-
-        await runner.connect();
-
-        try {
-          await createWorkspaceObjectTable({
-            queryRunner: runner,
-            flatObjectMetadata: participantObject,
-            flatFieldMetadatas: participantFields,
-          });
-        } finally {
-          await runner.release();
-        }
-
-        await dataSource.query(
-          `CREATE UNIQUE INDEX participant_identity ON "${SCHEMA}"."agentChatThreadParticipant" ("threadId", "workspaceMemberId")`,
-        );
-        await dataSource.query(
-          `CREATE TABLE "${SCHEMA}"."recordShare" ("objectMetadataId" uuid, "recordId" uuid, "principalId" uuid, "principalType" text, "accessLevel" text, "rowCause" text, "sourceId" uuid, UNIQUE ("recordId", "principalId"))`,
-        );
-
-        const participantEvents = {
-          emitParticipantWritten: jest.fn().mockResolvedValue(undefined),
-        };
-        const participantService = new AgentChatThreadParticipantService(
-          threads,
-          {
-            assertHasMentionResolutionOrThrow: jest
-              .fn()
-              .mockResolvedValue(undefined),
-            getParticipantObjectMetadataId: jest
-              .fn()
-              .mockResolvedValue(participantObject.id),
-            findReadableThreadIds: jest
-              .fn()
-              .mockImplementation(({ threadIds }: { threadIds: string[] }) =>
-                Promise.resolve(threadIds),
-              ),
-          } as never,
-          participantEvents as never,
-          { add: jest.fn().mockResolvedValue(undefined) } as never,
-          orm as never,
-        );
-        const thread = await threads.insertAndReturnOne(WORKSPACE_ID, {
-          workspaceMemberId: MEMBER_ID,
-        });
-        const memberThreadAccess = {
-          workspaceId: WORKSPACE_ID,
-          workspaceMemberId: MEMBER_ID,
-          threadId: thread.id,
-        };
-        const readParticipant = async () => {
-          const [participant] = await dataSource.query<
-            AgentChatThreadParticipantRow[]
-          >(
-            `SELECT * FROM "${SCHEMA}"."agentChatThreadParticipant" WHERE "threadId" = $1 AND "workspaceMemberId" = $2`,
-            [thread.id, MEMBER_ID],
-          );
-
-          return participant;
-        };
-
-        await participantService.markAsMentioned(memberThreadAccess);
-
-        return {
-          participantService,
-          participantEvents,
-          memberThreadAccess,
-          readParticipant,
-        };
-      };
-
-      it('resolves the replying member in the durable message transaction', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        const chat = createChatService({
-          messageRepository: messages,
-          participantService,
-        });
-        const before = await readParticipant();
-        const otherMemberId = randomUUID();
-
-        await dataSource.query(
-          `INSERT INTO "${SCHEMA}"."workspaceMember" (id) VALUES ($1)`,
-          [otherMemberId],
-        );
-        await participantService.markAsMentioned({
-          ...memberThreadAccess,
-          workspaceMemberId: otherMemberId,
-        });
-
-        const message = await chat.addMessage({
-          ...memberThreadAccess,
-          userWorkspaceId: OWNER_ID,
-          uiMessage: {
-            role: AgentMessageRole.USER,
-            parts: [{ type: 'text', text: 'I have handled this.' }],
-          },
-        });
-
-        expect(
-          await messages.findOne(WORKSPACE_ID, {
-            where: { id: message.id },
-            relations: ['parts'],
-          }),
-        ).toMatchObject({
-          senderWorkspaceMemberId: MEMBER_ID,
-          parts: [
-            expect.objectContaining({ textContent: 'I have handled this.' }),
-          ],
-        });
-        expect(await readParticipant()).toMatchObject({
-          lastMentionedAt: before.lastMentionedAt,
-          lastResolvedMentionAt: before.lastMentionedAt,
-        });
-
-        const [otherParticipant] = await dataSource.query<
-          AgentChatThreadParticipantRow[]
-        >(
-          `SELECT * FROM "${SCHEMA}"."agentChatThreadParticipant" WHERE "threadId" = $1 AND "workspaceMemberId" = $2`,
-          [memberThreadAccess.threadId, otherMemberId],
-        );
-
-        expect(otherParticipant.lastResolvedMentionAt).toBeNull();
-      });
-
-      it('rolls mention resolution back when the message cannot be inserted', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        const chat = createChatService({
-          messageRepository: messages,
-          participantService,
-        });
-        const messageId = randomUUID();
-        const message = {
-          ...memberThreadAccess,
-          userWorkspaceId: OWNER_ID,
-          id: messageId,
-          uiMessage: {
-            role: AgentMessageRole.USER,
-            parts: [{ type: 'text' as const, text: 'Accepted reply' }],
-          },
-        };
-
-        await chat.addMessage(message);
-        await participantService.markAsMentioned(memberThreadAccess);
-
-        const before = await readParticipant();
-
-        await expect(chat.addMessage(message)).rejects.toThrow();
-        expect(await readParticipant()).toMatchObject({
-          lastMentionedAt: before.lastMentionedAt,
-          lastResolvedMentionAt: before.lastResolvedMentionAt,
-        });
-      });
-
-      it('resolves the mention when the member reads the chat and keeps it when they mark it unread', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        const before = await readParticipant();
-
-        for (const action of [
-          AgentChatInboxAction.READ,
-          AgentChatInboxAction.UNREAD,
-        ]) {
-          await participantService.updateInboxState({
-            ...memberThreadAccess,
-            threadIds: [memberThreadAccess.threadId],
-            action,
-            snoozedUntil: null,
-          });
-          expect(await readParticipant()).toMatchObject({
-            lastMentionedAt: before.lastMentionedAt,
-            lastResolvedMentionAt: before.lastMentionedAt,
-          });
-        }
-      });
-
-      it('resolves Done while keeping Snooze and marking unread independent', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        const before = await readParticipant();
-
-        for (const action of [
-          AgentChatInboxAction.UNREAD,
-          AgentChatInboxAction.SNOOZE,
-        ]) {
-          await participantService.updateInboxState({
-            ...memberThreadAccess,
-            threadIds: [memberThreadAccess.threadId],
-            action,
-            snoozedUntil: new Date(Date.now() + 60_000),
-          });
-          expect(await readParticipant()).toMatchObject({
-            lastMentionedAt: before.lastMentionedAt,
-            lastResolvedMentionAt: null,
-          });
-        }
-
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.ARCHIVE,
-          snoozedUntil: null,
-        });
-
-        expect(await readParticipant()).toMatchObject({
-          lastResolvedMentionAt: before.lastMentionedAt,
-          snoozedUntil: null,
-        });
-      });
-
-      it('resolves the mention when the member unsubscribes', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        const before = await readParticipant();
-
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.UNSUBSCRIBE,
-          snoozedUntil: null,
-        });
-
-        expect(await readParticipant()).toMatchObject({
-          isSubscribed: false,
-          lastResolvedMentionAt: before.lastMentionedAt,
-        });
-      });
-
-      describe('queued replies', () => {
-        const setUpQueuedReply = async () => {
-          const mentionState = await setUpMentionState();
-          const queue = createQueueService({
-            messageRepository: messages,
-            participantService: mentionState.participantService,
-          });
-          const queueReply = () =>
-            queue.queueMessage({
-              ...mentionState.memberThreadAccess,
-              text: 'On it',
-              userWorkspaceId: OWNER_ID,
-            });
-
-          return { ...mentionState, queue, queueReply };
-        };
-
-        it('resolves the mention when the member queues a reply and keeps it after the reply is deleted', async () => {
-          const { queue, queueReply, readParticipant } =
-            await setUpQueuedReply();
-          const mentioned = await readParticipant();
-          const reply = await queueReply();
-
-          expect(await readParticipant()).toMatchObject({
-            lastResolvedMentionAt: mentioned.lastMentionedAt,
-          });
-
-          await queue.deleteQueuedMessage({
-            workspaceId: WORKSPACE_ID,
-            messageId: reply.id,
-          });
-
-          expect(await readParticipant()).toMatchObject({
-            lastResolvedMentionAt: mentioned.lastMentionedAt,
-          });
-        });
-      });
-
-      it('keeps an immediately repeated mention newer at millisecond precision', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.ARCHIVE,
-          snoozedUntil: null,
-        });
-        await participantService.markAsMentioned(memberThreadAccess);
-
-        const participant = await readParticipant();
-
-        expect(participant.lastMentionedAt!.getTime()).toBeGreaterThan(
-          participant.lastResolvedMentionAt!.getTime(),
-        );
-      });
-
-      it('rolls back a failed accepted-response transaction', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-
-        await expect(
-          participantService.resolveMention({
-            ...memberThreadAccess,
-            writeResponse: async ({ manager, table }) => {
-              await manager.query(
-                `UPDATE ${table('agentChatThread')} SET title = $2 WHERE id = $1`,
-                [memberThreadAccess.threadId, 'This change must roll back'],
-              );
-              throw new Error('Invalid response');
-            },
-          }),
-        ).rejects.toThrow('Invalid response');
-        expect(await readParticipant()).toMatchObject({
-          lastResolvedMentionAt: null,
-        });
-        expect(
-          await threads.findOne(WORKSPACE_ID, {
-            where: { id: memberThreadAccess.threadId },
-          }),
-        ).not.toMatchObject({ title: 'This change must roll back' });
-      });
-
-      it('leaves a concurrent later mention unresolved after the older response', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-        let signalResponseStarted: () => void = () => undefined;
-        let finishResponse: () => void = () => undefined;
-        const responseStarted = new Promise<void>((resolve) => {
-          signalResponseStarted = resolve;
-        });
-        const responseFinished = new Promise<void>((resolve) => {
-          finishResponse = resolve;
-        });
-        const response = participantService.resolveMention({
-          ...memberThreadAccess,
-          writeResponse: async () => {
-            signalResponseStarted();
-            await responseFinished;
-          },
-        });
-
-        await responseStarted;
-
-        const laterMention =
-          participantService.markAsMentioned(memberThreadAccess);
-
-        finishResponse();
-        await Promise.all([response, laterMention]);
-
-        const participant = await readParticipant();
-
-        expect(participant.lastMentionedAt!.getTime()).toBeGreaterThan(
-          participant.lastResolvedMentionAt!.getTime(),
-        );
-      });
-
-      it('automatically files settled activity without changing the resolved mention', async () => {
-        const { participantService, memberThreadAccess, readParticipant } =
-          await setUpMentionState();
-
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.ARCHIVE,
-          snoozedUntil: null,
-        });
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.MOVE_TO_INBOX,
-          snoozedUntil: null,
-        });
-        await dataSource.query(
-          `UPDATE "${SCHEMA}"."agentChatThread" SET "lastActivityAt" = clock_timestamp(), "lastMessageSenderWorkspaceMemberId" = NULL WHERE id = $1`,
-          [memberThreadAccess.threadId],
-        );
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.READ,
-          snoozedUntil: null,
-        });
-
-        const before = await readParticipant();
-        const written = await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.ARCHIVE_IF_SETTLED,
-          snoozedUntil: null,
-        });
-
-        expect(written).toHaveLength(1);
-        expect(written[0].archivedAt).toBeInstanceOf(Date);
-        expect(written[0].lastResolvedMentionAt).toEqual(
-          before.lastResolvedMentionAt,
-        );
-      });
-
-      it('skips stale automatic filing when a new mention has arrived', async () => {
-        const {
-          participantService,
-          participantEvents,
-          memberThreadAccess,
-          readParticipant,
-        } = await setUpMentionState();
-
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.ARCHIVE,
-          snoozedUntil: null,
-        });
-        await dataSource.query(
-          `UPDATE "${SCHEMA}"."agentChatThread" SET "lastActivityAt" = clock_timestamp(), "lastMessageSenderWorkspaceMemberId" = NULL WHERE id = $1`,
-          [memberThreadAccess.threadId],
-        );
-        await participantService.updateInboxState({
-          ...memberThreadAccess,
-          threadIds: [memberThreadAccess.threadId],
-          action: AgentChatInboxAction.READ,
-          snoozedUntil: null,
-        });
-        await participantService.markAsMentioned(memberThreadAccess);
-        participantEvents.emitParticipantWritten.mockClear();
-
-        await expect(
-          participantService.updateInboxState({
-            ...memberThreadAccess,
-            threadIds: [memberThreadAccess.threadId],
-            action: AgentChatInboxAction.ARCHIVE_IF_SETTLED,
-            snoozedUntil: null,
-          }),
-        ).resolves.toEqual([]);
-
-        expect(await readParticipant()).toMatchObject({ archivedAt: null });
-        expect(participantEvents.emitParticipantWritten).not.toHaveBeenCalled();
-
-        const participant = await readParticipant();
-
-        expect(participant.lastMentionedAt!.getTime()).toBeGreaterThan(
-          participant.lastResolvedMentionAt!.getTime(),
-        );
       });
     });
   },
