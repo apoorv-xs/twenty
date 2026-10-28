@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { destroyAgentChatThread } from 'test/integration/utils/destroy-agent-chat-thread.util';
 import { getAppProviderByClassName } from 'test/integration/utils/get-app-provider-by-class-name.util';
 import { setManualRecordShare } from 'test/integration/utils/set-manual-record-share.util';
 import { waitForAllJobsToFinish } from 'test/integration/utils/wait-for-all-jobs-to-finish.util';
@@ -60,9 +59,7 @@ export const createChatParticipationTestContext = async () => {
     value: true,
   });
 
-  const registerThread = () => {
-    const threadId = randomUUID();
-
+  const registerThread = (threadId: string = randomUUID()) => {
     threadIds.add(threadId);
 
     return threadId;
@@ -193,11 +190,14 @@ export const createChatParticipationTestContext = async () => {
     saveMessage,
     cleanup: async () => {
       await waitForAllJobsToFinish();
-
-      for (const threadId of threadIds) {
-        await destroyAgentChatThread({ threadId });
-      }
-
+      await global.testDataSource.query(
+        `DELETE FROM "${schema}"."agentChatThread" WHERE id = ANY($1::uuid[])`,
+        [[...threadIds]],
+      );
+      await global.testDataSource.query(
+        `DELETE FROM "${schema}"."recordShare" WHERE "recordId" = ANY($1::uuid[])`,
+        [[...threadIds]],
+      );
       await featureFlagService.upsertWorkspaceFeatureFlag({
         workspaceId,
         featureFlag: FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED,
