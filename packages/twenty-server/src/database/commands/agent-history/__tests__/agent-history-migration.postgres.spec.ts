@@ -166,6 +166,7 @@ const createWorkspaceObjectTable = async ({
         userWorkspaceRoleMap: {},
         apiKeyRoleMap: {},
         flatRoleTargetByAgentIdMaps: {},
+        flatApplicationMaps: { byId: {}, idByUniversalIdentifier: {} },
         roleIdsWithAllRecordsAccess: [],
         eventEmitterService: { emitDatabaseBatchEvent },
         recordStock: {
