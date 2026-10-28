@@ -365,14 +365,14 @@ export class AgentChatResolver {
       ...(isInitialMessage ? recipientWorkspaceMemberIds : []),
     ];
     const eligibleWorkspaceMemberIds =
-      isAiChatInboxEnabled && isDefined(isAssistantMentioned)
-        ? await this.sharingService.findEligibleParticipantWorkspaceMemberIds({
-            threadId,
-            workspaceId: workspace.id,
-            workspaceMemberId,
-            memberIds: candidateWorkspaceMemberIds,
-          })
-        : [];
+      await this.findEligibleParticipantWorkspaceMemberIdsForReply({
+        isAiChatInboxEnabled,
+        isAssistantMentioned,
+        threadId,
+        workspaceId: workspace.id,
+        workspaceMemberId,
+        memberIds: candidateWorkspaceMemberIds,
+      });
     const isAssistantParticipating =
       !canStoreAssistantParticipation ||
       (isInitialMessage
@@ -595,6 +595,25 @@ export class AgentChatResolver {
   @ResolveField(() => Float)
   totalOutputCredits(@Parent() thread: AgentChatThreadWorkspaceEntity): number {
     return toDisplayCredits(Number(thread.totalOutputCredits));
+  }
+
+  private async findEligibleParticipantWorkspaceMemberIdsForReply({
+    isAiChatInboxEnabled,
+    isAssistantMentioned,
+    ...args
+  }: {
+    isAiChatInboxEnabled: boolean;
+    isAssistantMentioned?: boolean | null;
+    threadId: string;
+    workspaceId: string;
+    workspaceMemberId: string;
+    memberIds: string[];
+  }): Promise<string[]> {
+    if (!isAiChatInboxEnabled || !isDefined(isAssistantMentioned)) {
+      return [];
+    }
+
+    return this.sharingService.findEligibleParticipantWorkspaceMemberIds(args);
   }
 
   // the caller reads the thread after this, so it sees the reaped stream as released
