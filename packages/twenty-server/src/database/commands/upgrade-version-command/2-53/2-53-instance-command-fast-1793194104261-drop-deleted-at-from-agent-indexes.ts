@@ -8,6 +8,10 @@ export class DropDeletedAtFromAgentIndexesFastInstanceCommand
   implements FastInstanceCommand
 {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // Soft-deleted agents are already hidden; without the filter they would come back live
+    await queryRunner.query(
+      'DELETE FROM "core"."agent" WHERE "deletedAt" IS NOT NULL',
+    );
     await queryRunner.query('DROP INDEX "core"."IDX_AGENT_ID_DELETED_AT"');
     await queryRunner.query(
       'DROP INDEX "core"."IDX_AGENT_NAME_WORKSPACE_ID_UNIQUE"',
