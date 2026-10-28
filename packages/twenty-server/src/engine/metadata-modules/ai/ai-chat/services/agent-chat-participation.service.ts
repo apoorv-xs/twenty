@@ -51,8 +51,7 @@ export class AgentChatParticipationService {
     );
   }
 
-  // The message may already be saved, so participation that cannot be applied
-  // leaves the chat unchanged rather than failing the send
+  // The message may already be saved, so a participation failure must not fail the send
   async completeMessage(
     args: AgentChatMessageParticipationArgs,
   ): Promise<string[]> {
