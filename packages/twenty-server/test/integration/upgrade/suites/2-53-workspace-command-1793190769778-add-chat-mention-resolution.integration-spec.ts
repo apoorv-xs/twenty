@@ -20,9 +20,8 @@ const RUN_ON_WORKSPACE_ARGS = {
   total: 1,
 };
 const SCHEMA = getWorkspaceSchemaName(SEED_APPLE_WORKSPACE_ID);
-const MENTIONED_AT = '2026-10-01T10:00:00.000Z';
-const REPLIED_AT = '2026-10-01T11:00:00.000Z';
-const OLDER_REPLY_AT = '2026-10-01T09:00:00.000Z';
+const SNOOZED_AT = '2026-10-01T10:00:00.000Z';
+const PAST_SNOOZE_END = '2026-10-01T11:00:00.000Z';
 const RESOLVED_MENTION_FIELD_UNIVERSAL_IDENTIFIER =
   STANDARD_OBJECTS.agentChatThreadParticipant.fields.lastResolvedMentionAt
     .universalIdentifier;
@@ -57,19 +56,9 @@ describe('2-53 workspace command - add chat mention resolution (integration)', (
     };
   };
 
-  const createParticipant = async ({
-    lastMentionedAt = null,
-    lastReadAt = null,
-    archivedAt = null,
-    snoozedUntil = null,
-    deletedAt = null,
-  }: {
-    lastMentionedAt?: string | null;
-    lastReadAt?: string | null;
-    archivedAt?: string | null;
-    snoozedUntil?: string | null;
-    deletedAt?: string | null;
-  }): Promise<{ threadId: string; participantId: string }> => {
+  const createSnoozedParticipant = async (
+    snoozedUntil: string,
+  ): Promise<string> => {
     const threadId = randomUUID();
     const participantId = randomUUID();
 
@@ -83,105 +72,32 @@ describe('2-53 workspace command - add chat mention resolution (integration)', (
     );
     await global.testDataSource.query(
       `INSERT INTO ${SCHEMA}."agentChatThreadParticipant"
-         (id, "threadId", "workspaceMemberId", "lastMentionedAt", "lastReadAt", "archivedAt", "snoozedUntil", "deletedAt")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+         (id, "threadId", "workspaceMemberId", "archivedAt", "snoozedUntil")
+       VALUES ($1, $2, $3, $4, $5)`,
       [
         participantId,
         threadId,
         WORKSPACE_MEMBER_DATA_SEED_IDS.JONY,
-        lastMentionedAt,
-        lastReadAt,
-        archivedAt,
+        SNOOZED_AT,
         snoozedUntil,
-        deletedAt,
       ],
     );
 
-    return { threadId, participantId };
+    return participantId;
   };
 
-  const createHistoricalMention = async ({
-    lastReadAt = null,
-    participantDeletedAt = null,
-    reply,
-  }: {
-    lastReadAt?: string | null;
-    participantDeletedAt?: string | null;
-    reply?: {
-      createdAt: string;
-      senderWorkspaceMemberId: string;
-      deletedAt?: string | null;
-      role?: 'user' | 'assistant';
-      agentId?: string | null;
-      hasTurn?: boolean;
-      turnDeletedAt?: string | null;
-    };
-  }): Promise<string> => {
-    const { threadId, participantId } = await createParticipant({
-      lastMentionedAt: MENTIONED_AT,
-      lastReadAt,
-      deletedAt: participantDeletedAt,
-    });
-
-    if (!isDefined(reply)) {
-      return participantId;
-    }
-
-    const turnId = reply.hasTurn === false ? null : randomUUID();
-
-    if (isDefined(turnId)) {
+  const readParticipants = async () => {
+    const rows: { id: string; archivedAt: Date | null; updatedAt: Date }[] =
       await global.testDataSource.query(
-        `INSERT INTO ${SCHEMA}."agentTurn"
-           (id, "threadId", "agentId", status, "deletedAt")
-         VALUES ($1, $2, $3, 'completed', $4)`,
-        [turnId, threadId, reply.agentId ?? null, reply.turnDeletedAt ?? null],
+        `SELECT id, "archivedAt", "updatedAt"
+         FROM ${SCHEMA}."agentChatThreadParticipant"
+         WHERE id = ANY($1::uuid[]) ORDER BY id`,
+        [participantIds],
       );
-    }
 
-    await global.testDataSource.query(
-      `INSERT INTO ${SCHEMA}."agentMessage"
-         (id, "threadId", "senderWorkspaceMemberId", role, status, "createdAt", "deletedAt", "turnId")
-       VALUES ($1, $2, $3, $4, 'sent', $5, $6, $7)`,
-      [
-        randomUUID(),
-        threadId,
-        reply.senderWorkspaceMemberId,
-        reply.role ?? 'user',
-        reply.createdAt,
-        reply.deletedAt ?? null,
-        turnId,
-      ],
-    );
-
-    return participantId;
-  };
-
-  const createSnoozedParticipant = async (
-    snoozedUntil: string,
-  ): Promise<string> => {
-    const { participantId } = await createParticipant({
-      archivedAt: MENTIONED_AT,
-      snoozedUntil,
-    });
-
-    return participantId;
-  };
-
-  const readResolutions = async () => {
-    const rows: {
-      id: string;
-      lastResolvedMentionAt: Date | null;
-      updatedAt: Date;
-    }[] = await global.testDataSource.query(
-      `SELECT id, "lastResolvedMentionAt", "updatedAt"
-       FROM ${SCHEMA}."agentChatThreadParticipant"
-       WHERE id = ANY($1::uuid[]) ORDER BY id`,
-      [participantIds],
-    );
-
-    return rows.map(({ id, lastResolvedMentionAt, updatedAt }) => ({
+    return rows.map(({ id, archivedAt, updatedAt }) => ({
       id,
-      lastResolvedMentionAt: lastResolvedMentionAt?.toISOString() ?? null,
+      archivedAt: archivedAt?.toISOString() ?? null,
       updatedAt: updatedAt.toISOString(),
     }));
   };
@@ -199,14 +115,6 @@ describe('2-53 workspace command - add chat mention resolution (integration)', (
   });
 
   afterAll(async () => {
-    await global.testDataSource.query(
-      `DELETE FROM ${SCHEMA}."agentMessage" WHERE "threadId" = ANY($1::uuid[])`,
-      [threadIds],
-    );
-    await global.testDataSource.query(
-      `DELETE FROM ${SCHEMA}."agentTurn" WHERE "threadId" = ANY($1::uuid[])`,
-      [threadIds],
-    );
     await global.testDataSource.query(
       `DELETE FROM ${SCHEMA}."agentChatThreadParticipant" WHERE "threadId" = ANY($1::uuid[])`,
       [threadIds],
@@ -239,100 +147,44 @@ describe('2-53 workspace command - add chat mention resolution (integration)', (
     });
   });
 
-  it('adds the field and resolves mentions the recipient read or replied to after them', async () => {
-    const recipientReply = {
-      createdAt: REPLIED_AT,
-      senderWorkspaceMemberId: WORKSPACE_MEMBER_DATA_SEED_IDS.JONY,
-    };
-    const resolvedParticipantIds = [
-      await createHistoricalMention({ reply: recipientReply }),
-      await createHistoricalMention({ lastReadAt: REPLIED_AT }),
-    ];
-    const unresolvedParticipantIds = [
-      await createHistoricalMention({
-        reply: {
-          ...recipientReply,
-          senderWorkspaceMemberId: WORKSPACE_MEMBER_DATA_SEED_IDS.JANE,
-        },
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, createdAt: OLDER_REPLY_AT },
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, deletedAt: REPLIED_AT },
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, role: 'assistant' },
-      }),
-      await createHistoricalMention({
-        participantDeletedAt: REPLIED_AT,
-        reply: recipientReply,
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, agentId: randomUUID() },
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, hasTurn: false },
-      }),
-      await createHistoricalMention({
-        reply: { ...recipientReply, turnDeletedAt: REPLIED_AT },
-      }),
-    ];
-
+  it('adds the field and lifts the participant access fence', async () => {
     await command.up(RUN_ON_WORKSPACE_ARGS);
 
     expect(await findResolutionMetadata()).toEqual({
       hasField: true,
       hasColumn: true,
     });
-    expect(await readResolutions()).toEqual(
-      expect.arrayContaining([
-        ...resolvedParticipantIds.map((id) =>
-          expect.objectContaining({ id, lastResolvedMentionAt: MENTIONED_AT }),
-        ),
-        ...unresolvedParticipantIds.map((id) =>
-          expect.objectContaining({ id, lastResolvedMentionAt: null }),
-        ),
-      ]),
-    );
     await expect(
       sharingService.getParticipantObjectMetadataId(SEED_APPLE_WORKSPACE_ID),
     ).resolves.toEqual(expect.any(String));
   });
 
   it('ends snoozes that came due before the upgrade', async () => {
-    const dueParticipantId = await createSnoozedParticipant(REPLIED_AT);
+    const dueParticipantId = await createSnoozedParticipant(PAST_SNOOZE_END);
     const futureParticipantId = await createSnoozedParticipant(
       new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     );
 
     await command.up(RUN_ON_WORKSPACE_ARGS);
 
-    const rows: { id: string; archivedAt: Date | null }[] =
-      await global.testDataSource.query(
-        `SELECT id, "archivedAt" FROM ${SCHEMA}."agentChatThreadParticipant"
-         WHERE id = ANY($1::uuid[])`,
-        [[dueParticipantId, futureParticipantId]],
-      );
-
     expect(
       Object.fromEntries(
-        rows.map(({ id, archivedAt }) => [
+        (await readParticipants()).map(({ id, archivedAt }) => [
           id,
-          archivedAt?.toISOString() ?? null,
+          archivedAt,
         ]),
       ),
     ).toEqual({
       [dueParticipantId]: null,
-      [futureParticipantId]: MENTIONED_AT,
+      [futureParticipantId]: SNOOZED_AT,
     });
   });
 
-  it('preserves resolution cursors and row versions when repeated', async () => {
-    const resolutions = await readResolutions();
+  it('leaves participant rows unchanged when repeated', async () => {
+    const participants = await readParticipants();
 
     await command.up(RUN_ON_WORKSPACE_ARGS);
 
-    expect(await readResolutions()).toEqual(resolutions);
+    expect(await readParticipants()).toEqual(participants);
   });
 });
