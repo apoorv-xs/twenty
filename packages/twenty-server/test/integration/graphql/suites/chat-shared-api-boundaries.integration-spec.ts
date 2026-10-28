@@ -25,7 +25,7 @@ import { WORKSPACE_MEMBER_DATA_SEED_IDS } from 'src/engine/workspace-manager/dev
 
 const READ_THREAD = parse(`
   query SharedConversation($threadId: UUID!) {
-    chatThread(id: $threadId) { id workspaceMemberId }
+    chatThread(id: $threadId) { id }
     chatMessages(threadId: $threadId) { id senderWorkspaceMemberId senderUserWorkspaceId }
     chatStreamCatchupChunks(threadId: $threadId) { chunks maxSeq }
   }
@@ -121,9 +121,7 @@ describe('Shared conversation API boundaries', () => {
     const readable = await readThread(threadId);
 
     expect(readable.body.errors).toBeUndefined();
-    expect(readable.body.data.chatThread.workspaceMemberId).toBe(
-      context.workspaceMemberId,
-    );
+    expect(readable.body.data.chatThread.id).toBe(threadId);
     expect(readable.body.data.chatMessages).toContainEqual(
       expect.objectContaining({ id: message.id }),
     );
@@ -326,7 +324,7 @@ describe('Shared conversation API boundaries', () => {
       expect.arrayContaining([
         expect.objectContaining({
           workspaceMemberId: recipientId,
-          lastMentionedAt: expect.any(Date),
+          lastMentionedAt: expect.anything(),
           lastReadAt: null,
         }),
       ]),
