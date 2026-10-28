@@ -1,17 +1,18 @@
-import { type QueryRunner } from 'typeorm';
+import { DataSource, QueryRunner } from 'typeorm';
 
 import { RegisteredInstanceCommand } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
-import { type FastInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/fast-instance-command.interface';
+import { SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 
-@RegisteredInstanceCommand('2.53.0', 1793195872788)
-export class DropDeletedAtFromAgentIndexesFastInstanceCommand
-  implements FastInstanceCommand
-{
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    // Soft-deleted agents are already hidden; without the filter they would come back live
-    await queryRunner.query(
+@RegisteredInstanceCommand('2.53.0', 1793195872788, { type: 'slow' })
+export class DropDeletedAtFromAgentIndexesSlowInstanceCommand implements SlowInstanceCommand {
+  // Soft-deleted agents are already hidden; without the filter they would come back live
+  async runDataMigration(dataSource: DataSource): Promise<void> {
+    await dataSource.query(
       'DELETE FROM "core"."agent" WHERE "deletedAt" IS NOT NULL',
     );
+  }
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query('DROP INDEX "core"."IDX_AGENT_ID_DELETED_AT"');
     await queryRunner.query(
       'DROP INDEX "core"."IDX_AGENT_NAME_WORKSPACE_ID_UNIQUE"',
@@ -21,6 +22,7 @@ export class DropDeletedAtFromAgentIndexesFastInstanceCommand
     );
   }
 
+  // Deleted soft-deleted agents are not restored
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       'DROP INDEX "core"."IDX_AGENT_NAME_WORKSPACE_ID_UNIQUE"',
