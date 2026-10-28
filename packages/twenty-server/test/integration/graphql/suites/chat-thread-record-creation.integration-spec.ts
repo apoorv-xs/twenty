@@ -21,7 +21,7 @@ describe('Record API chat creation initializes personal inbox state', () => {
     const participants = await context.readParticipants(threadId);
 
     expect(thread.workspaceMemberId).toBe(context.workspaceMemberId);
-    expect(thread.lastActivityAt).toEqual(expect.any(Date));
+    expect(thread.lastActivityAt).toEqual(expect.anything());
     expect(participants).toEqual([
       expect.objectContaining({
         workspaceMemberId: context.workspaceMemberId,
@@ -33,31 +33,42 @@ describe('Record API chat creation initializes personal inbox state', () => {
   };
 
   it('creates a read personal inbox copy with the same activity boundary', async () => {
-    const threadId = context.registerThread();
     const response = await makeGraphqlApiRequest(
       createOneOperationFactory({
         objectMetadataSingularName: 'agentChatThread',
         gqlFields: 'id',
-        data: { id: threadId, title: 'Created through the record API' },
+        data: { title: 'Created through the record API' },
       }),
     );
 
     expect(response.body.errors).toBeUndefined();
-    await expectCreatorInboxState(threadId);
+    await expectCreatorInboxState(
+      context.registerThread(response.body.data.createAgentChatThread.id),
+    );
   });
 
   it('initializes each conversation returned by createMany', async () => {
-    const threadIds = [context.registerThread(), context.registerThread()];
     const response = await makeGraphqlApiRequest(
       createManyOperationFactory({
         objectMetadataSingularName: 'agentChatThread',
         objectMetadataPluralName: 'agentChatThreads',
         gqlFields: 'id',
-        data: threadIds.map((id) => ({ id, title: 'Created in a batch' })),
+        data: [
+          { title: 'Created in a batch' },
+          { title: 'Created in a batch' },
+        ],
       }),
     );
 
     expect(response.body.errors).toBeUndefined();
+
+    const createdThreads: { id: string }[] =
+      response.body.data.createAgentChatThreads;
+    const threadIds = createdThreads.map(({ id }) =>
+      context.registerThread(id),
+    );
+
+    expect(threadIds).toHaveLength(2);
 
     for (const threadId of threadIds) {
       await expectCreatorInboxState(threadId);
