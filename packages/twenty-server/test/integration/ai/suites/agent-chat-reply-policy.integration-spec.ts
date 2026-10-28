@@ -38,20 +38,22 @@ describe('Assistant reply selection with stored conversation participants', () =
       workspaceId: context.workspaceId,
       workspaceMemberId: context.workspaceMemberId,
       userWorkspaceId: context.userWorkspaceId,
-      additionalWorkspaceMemberIds: [],
+      candidateWorkspaceMemberIds: [],
       isAssistantMentioned,
       text: 'Can Ada help with the latest task?',
     });
-  const createGroup = async (isAssistantParticipant = true) => {
-    const threadId = await context.createThread(isAssistantParticipant);
-
-    await context.threadService.addParticipants({
+  const addJonyAsParticipant = (threadId: string) =>
+    context.threadService.addParticipants({
       workspaceId: context.workspaceId,
       workspaceMemberId: context.workspaceMemberId,
       threadId,
       participantWorkspaceMemberIds: [WORKSPACE_MEMBER_DATA_SEED_IDS.JONY],
       isMention: false,
     });
+  const createGroup = async (isAssistantParticipant = true) => {
+    const threadId = await context.createThread(isAssistantParticipant);
+
+    await addJonyAsParticipant(threadId);
 
     return threadId;
   };
@@ -124,13 +126,7 @@ describe('Assistant reply selection with stored conversation participants', () =
     const threadId = await context.createThread();
 
     await expect(shouldReply({ threadId })).resolves.toBe(true);
-    await context.threadService.addParticipants({
-      workspaceId: context.workspaceId,
-      workspaceMemberId: context.workspaceMemberId,
-      threadId,
-      participantWorkspaceMemberIds: [WORKSPACE_MEMBER_DATA_SEED_IDS.JONY],
-      isMention: false,
-    });
+    await addJonyAsParticipant(threadId);
     await expect(shouldReply({ threadId })).resolves.toBe(false);
   });
 

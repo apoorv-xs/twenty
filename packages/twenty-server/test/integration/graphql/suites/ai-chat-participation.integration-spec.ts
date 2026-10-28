@@ -91,7 +91,9 @@ describe('Chat participation through the authenticated API', () => {
     expect(
       response.body.data.sendChatMessage.recipientParticipantWorkspaceMemberIds,
     ).toEqual([recipientId]);
-    expect(await context.readParticipants(threadId)).toContainEqual(
+    const participants = await context.readParticipants(threadId);
+
+    expect(participants).toContainEqual(
       expect.objectContaining({
         workspaceMemberId: recipientId,
         lastReadAt: null,
@@ -100,10 +102,10 @@ describe('Chat participation through the authenticated API', () => {
         lastMentionedAt: null,
       }),
     );
-    expect(await context.readParticipants(threadId)).not.toContainEqual(
+    expect(participants).not.toContainEqual(
       expect.objectContaining({ workspaceMemberId: foreignMemberId }),
     );
-    expect(await context.readParticipants(threadId)).not.toContainEqual(
+    expect(participants).not.toContainEqual(
       expect.objectContaining({
         workspaceMemberId: WORKSPACE_MEMBER_DATA_SEED_IDS.SCOTT,
       }),

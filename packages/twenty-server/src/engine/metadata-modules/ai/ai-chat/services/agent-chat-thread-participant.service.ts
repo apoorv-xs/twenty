@@ -210,20 +210,18 @@ export class AgentChatThreadParticipantService {
 
   async moveMembersToInbox({
     participantWorkspaceMemberIds,
-    isMention = false,
+    isMention,
     ...threadAccessArguments
   }: AgentChatThreadAccessArgs & {
     participantWorkspaceMemberIds: string[];
-    isMention?: boolean;
-  }): Promise<AgentChatThreadParticipantRow[]> {
-    const memberIds = [...new Set(participantWorkspaceMemberIds)]
-      .filter(
-        (memberId) => memberId !== threadAccessArguments.workspaceMemberId,
-      )
-      .sort();
+    isMention: boolean;
+  }): Promise<void> {
+    const memberIds = [...new Set(participantWorkspaceMemberIds)].filter(
+      (memberId) => memberId !== threadAccessArguments.workspaceMemberId,
+    );
 
     if (!isNonEmptyArray(memberIds)) {
-      return [];
+      return;
     }
 
     await this.sharingService.getThreadWithAccess({
@@ -308,31 +306,6 @@ export class AgentChatThreadParticipantService {
         ...write,
       });
     }
-
-    return writes.map(({ after }) => after);
-  }
-
-  // A mention brings the chat back unread for the mentioned member, who the
-  // caller has already checked can reply in it, and follows it again for a
-  // member who had unsubscribed
-  async markAsMentioned({
-    threadId,
-    ...args
-  }: AgentChatThreadAccessArgs): Promise<void> {
-    await this.write(
-      { ...args, threadIds: [threadId] },
-      ({ participantTable }) =>
-        `INSERT INTO ${participantTable} AS participant ("threadId", "workspaceMemberId", "lastMentionedAt")
-         VALUES ($1, $2, clock_timestamp())
-         ON CONFLICT ("threadId", "workspaceMemberId") DO UPDATE SET
-           "lastReadAt" = NULL,
-           "archivedAt" = NULL,
-           "snoozedUntil" = NULL,
-           "isSubscribed" = true,
-           "lastMentionedAt" = EXCLUDED."lastMentionedAt",
-           "updatedAt" = now()
-         RETURNING *`,
-    );
   }
 
   // An assignee follows the chat and finds it in their inbox, unread unless

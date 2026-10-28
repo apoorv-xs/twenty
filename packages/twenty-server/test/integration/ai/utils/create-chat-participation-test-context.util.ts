@@ -89,8 +89,10 @@ export const createChatParticipationTestContext = async () => {
       isAssistantParticipant: boolean;
       workspaceMemberId: string;
       lastActivityAt: Date;
+      deletedAt: Date | null;
+      activeStreamId: string | null;
     }[] = await global.testDataSource.query(
-      `SELECT "isAssistantParticipant", "workspaceMemberId", "lastActivityAt"
+      `SELECT "isAssistantParticipant", "workspaceMemberId", "lastActivityAt", "deletedAt", "activeStreamId"
        FROM "${schema}"."agentChatThread" WHERE id = $1`,
       [threadId],
     );

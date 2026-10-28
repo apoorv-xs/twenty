@@ -65,18 +65,6 @@ describe('Shared conversation API boundaries', () => {
       { query: READ_THREAD, variables: { threadId } },
       APPLE_JONY_MEMBER_ACCESS_TOKEN,
     );
-  const readStoredState = async (threadId: string) => {
-    const [thread]: {
-      workspaceMemberId: string;
-      deletedAt: Date | null;
-      activeStreamId: string | null;
-    }[] = await global.testDataSource.query(
-      `SELECT "workspaceMemberId", "deletedAt", "activeStreamId" FROM "${context.schema}"."agentChatThread" WHERE id = $1`,
-      [threadId],
-    );
-
-    return thread;
-  };
   const markDeleted = (threadId: string) =>
     global.testDataSource.query(
       `UPDATE "${context.schema}"."agentChatThread" SET "deletedAt" = now() WHERE id = $1`,
@@ -150,7 +138,7 @@ describe('Shared conversation API boundaries', () => {
 
       expect(revoked.body.errors).toBeDefined();
     }
-    expect((await readStoredState(threadId)).workspaceMemberId).toBe(
+    expect((await context.readThread(threadId)).workspaceMemberId).toBe(
       context.workspaceMemberId,
     );
     await publisher.resetStreamState(threadId);
@@ -201,7 +189,7 @@ describe('Shared conversation API boundaries', () => {
       getCancelChannel(threadId, streamId),
       'cancel',
     );
-    expect((await readStoredState(threadId)).activeStreamId).toBe(streamId);
+    expect((await context.readThread(threadId)).activeStreamId).toBe(streamId);
     expect(
       await queue.findQueuedMessage({
         messageId: queued.id,
@@ -217,7 +205,7 @@ describe('Shared conversation API boundaries', () => {
         workspaceMemberId: WORKSPACE_MEMBER_DATA_SEED_IDS.JONY,
       }),
     ).rejects.toBeDefined();
-    expect((await readStoredState(threadId)).deletedAt).not.toBeNull();
+    expect((await context.readThread(threadId)).deletedAt).not.toBeNull();
     await global.testDataSource.query(
       `UPDATE "${context.schema}"."agentChatThread" SET "deletedAt" = NULL, "activeStreamId" = NULL WHERE id = $1`,
       [threadId],
@@ -259,7 +247,7 @@ describe('Shared conversation API boundaries', () => {
     expect(response.body.data.sendChatMessage.streamId).toEqual(
       expect.any(String),
     );
-    expect((await readStoredState(threadId)).deletedAt).toBeNull();
+    expect((await context.readThread(threadId)).deletedAt).toBeNull();
     expect(restores()).toHaveLength(1);
     const messages = await context.chatService.getMessagesForThread({
       threadId,
@@ -290,7 +278,7 @@ describe('Shared conversation API boundaries', () => {
     });
 
     expect(response.body.errors).toBeDefined();
-    expect((await readStoredState(threadId)).deletedAt).not.toBeNull();
+    expect((await context.readThread(threadId)).deletedAt).not.toBeNull();
     expect(restores()).toHaveLength(0);
     const messages = await global.testDataSource.query(
       `SELECT id FROM "${context.schema}"."agentMessage" WHERE id = $1`,

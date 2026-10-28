@@ -5,6 +5,7 @@ import { doNotTranslate } from 'twenty-shared/i18n';
 
 import { UsageOperationType } from 'src/engine/core-modules/usage/enums/usage-operation-type.enum';
 import { AgentChatThreadParticipantService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-thread-participant.service';
+import { AgentChatSharingService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-sharing.service';
 import { formatErrorWithCause } from 'src/engine/metadata-modules/ai/ai-chat/utils/format-error-with-cause.util';
 import { AiEvaluationService } from 'src/engine/metadata-modules/ai/ai-evaluation/services/ai-evaluation.service';
 import { AgentConversationReaderService } from 'src/engine/metadata-modules/ai/ai-history/services/agent-conversation-reader.service';
@@ -20,6 +21,7 @@ export class AgentChatReplyPolicyService {
 
   constructor(
     private readonly participantService: AgentChatThreadParticipantService,
+    private readonly sharingService: AgentChatSharingService,
     private readonly aiEvaluationService: AiEvaluationService,
     private readonly conversationReaderService: AgentConversationReaderService,
   ) {}
@@ -31,7 +33,7 @@ export class AgentChatReplyPolicyService {
     workspaceId,
     workspaceMemberId,
     userWorkspaceId,
-    additionalWorkspaceMemberIds,
+    candidateWorkspaceMemberIds,
     isAssistantMentioned,
     text,
   }: {
@@ -44,7 +46,7 @@ export class AgentChatReplyPolicyService {
     workspaceId: string;
     workspaceMemberId: string;
     userWorkspaceId: string;
-    additionalWorkspaceMemberIds: string[];
+    candidateWorkspaceMemberIds: string[];
     isAssistantMentioned?: boolean | null;
     text: string;
   }): Promise<boolean> {
@@ -68,12 +70,19 @@ export class AgentChatReplyPolicyService {
       return false;
     }
 
+    const eligibleWorkspaceMemberIds =
+      await this.sharingService.findEligibleParticipantWorkspaceMemberIds({
+        workspaceId,
+        workspaceMemberId,
+        threadId: thread.id,
+        memberIds: candidateWorkspaceMemberIds,
+      });
     const memberCount = await this.participantService.countMembers({
       workspaceId,
       threadId: thread.id,
       additionalWorkspaceMemberIds: [
         workspaceMemberId,
-        ...additionalWorkspaceMemberIds,
+        ...eligibleWorkspaceMemberIds,
       ],
     });
 

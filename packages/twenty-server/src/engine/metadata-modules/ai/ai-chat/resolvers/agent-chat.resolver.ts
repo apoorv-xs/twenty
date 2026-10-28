@@ -342,17 +342,6 @@ export class AgentChatResolver {
       ...mentionedWorkspaceMemberIds,
       ...(isInitialMessage ? recipientWorkspaceMemberIds : []),
     ];
-    const eligibleWorkspaceMemberIds =
-      await this.participationService.findEligibleReplyParticipantWorkspaceMemberIds(
-        {
-          isAiChatInboxEnabled,
-          isAssistantMentioned,
-          threadId,
-          workspaceId: workspace.id,
-          workspaceMemberId,
-          memberIds: candidateWorkspaceMemberIds,
-        },
-      );
     const isAssistantParticipating =
       !canStoreAssistantParticipation ||
       (isInitialMessage
@@ -368,7 +357,7 @@ export class AgentChatResolver {
       workspaceId: workspace.id,
       workspaceMemberId,
       userWorkspaceId,
-      additionalWorkspaceMemberIds: eligibleWorkspaceMemberIds,
+      candidateWorkspaceMemberIds,
       isAssistantMentioned,
       text,
     });
