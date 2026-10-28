@@ -1,4 +1,5 @@
 import {
+  type Experimental_EvaluationModelV4Answer,
   type Experimental_EvaluationModelV4CallOptions,
   type Experimental_EvaluationModelV4Result,
 } from '@ai-sdk/provider';
@@ -12,6 +13,24 @@ import {
   type RegisteredAiEvaluationModel,
   type RegisteredAiModel,
 } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
+
+const createRealmIndependentRecord = <TRecord extends object>(
+  record: TRecord,
+): TRecord => Object.assign(Object.create(null), record);
+
+const createReplyEvaluation = (
+  probability: number,
+): Experimental_EvaluationModelV4Result => ({
+  answers: createRealmIndependentRecord({
+    shouldAssistantReply:
+      createRealmIndependentRecord<Experimental_EvaluationModelV4Answer>({
+        type: 'boolean',
+        probability,
+      }),
+  }),
+  usage: { inputTokens: 1, outputTokens: 0 },
+  warnings: [],
+});
 
 export const configureChatParticipationModels = () => {
   const registry = getAppProviderByClassName<AiModelRegistryService>(
@@ -38,11 +57,7 @@ export const configureChatParticipationModels = () => {
   const evaluate = jest.fn<
     Promise<Experimental_EvaluationModelV4Result>,
     [Experimental_EvaluationModelV4CallOptions]
-  >(async () => ({
-    answers: { shouldAssistantReply: { type: 'boolean', probability: 0.8 } },
-    usage: { inputTokens: 1, outputTokens: 0 },
-    warnings: [],
-  }));
+  >(async () => createReplyEvaluation(0.8));
   const registeredEvaluationModel: RegisteredAiEvaluationModel = {
     modelId: JEV_MODEL_ID,
     providerName: 'typesafe-ai',
@@ -70,6 +85,8 @@ export const configureChatParticipationModels = () => {
 
   return {
     evaluate,
+    setReplyProbability: (probability: number) =>
+      evaluate.mockResolvedValue(createReplyEvaluation(probability)),
     enableEvaluation: () =>
       evaluationModel.mockReturnValue(registeredEvaluationModel),
     restore: () => {
