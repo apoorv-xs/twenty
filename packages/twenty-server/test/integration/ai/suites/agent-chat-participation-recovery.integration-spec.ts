@@ -130,11 +130,11 @@ describe('Chat participation acceptance and recovery with real storage', () => {
     const controls: {
       release: () => void;
       markEntered: () => void;
-      didSecondEnter: boolean;
+      hasSecondSendEntered: boolean;
     } = {
       release: () => undefined,
       markEntered: () => undefined,
-      didSecondEnter: false,
+      hasSecondSendEntered: false,
     };
     const released = new Promise<void>((resolve) => {
       controls.release = resolve;
@@ -162,7 +162,7 @@ describe('Chat participation acceptance and recovery with real storage', () => {
       .runWithMessageLock({
         ...lockArguments,
         work: async () => {
-          controls.didSecondEnter = true;
+          controls.hasSecondSendEntered = true;
 
           return context.threadService.getWritableThread({
             ...lockArguments,
@@ -176,7 +176,7 @@ describe('Chat participation acceptance and recovery with real storage', () => {
       await new Promise((resolve) =>
         setTimeout(resolve, MESSAGE_LOCK_CONTENTION_HOLD_MS),
       );
-      expect(controls.didSecondEnter).toBe(false);
+      expect(controls.hasSecondSendEntered).toBe(false);
     } finally {
       controls.release();
     }
