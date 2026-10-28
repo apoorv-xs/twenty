@@ -32,6 +32,7 @@ const getStatus = ({
       lastMentionedAt,
       lastResolvedMentionAt,
       updatedAt: ARCHIVED_AT,
+      __typename: 'AgentChatThreadParticipant',
     },
   });
 
