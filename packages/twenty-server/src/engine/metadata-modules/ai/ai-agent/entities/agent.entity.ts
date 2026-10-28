@@ -33,8 +33,11 @@ export type AgentOverrides = {
 };
 
 @Entity('agent')
+// Both indexes go with the deletedAt column in 2.55
+@Index('IDX_AGENT_ID_DELETED_AT', ['id', 'deletedAt'])
 @Index('IDX_AGENT_NAME_WORKSPACE_ID_UNIQUE', ['name', 'workspaceId'], {
   unique: true,
+  where: '"deletedAt" IS NULL',
 })
 export class AgentEntity
   extends OverridableEntity<AgentOverrides>
