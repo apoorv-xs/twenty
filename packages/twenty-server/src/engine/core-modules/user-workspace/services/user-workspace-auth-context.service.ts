@@ -3,12 +3,8 @@ import { isUserAuthContext } from 'src/engine/core-modules/auth/guards/is-user-a
 import { isNonEmptyString } from '@sniptt/guards';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import {
-  assertIsDefinedOrThrow,
-  isDefined,
-  isNonEmptyArray,
-} from 'twenty-shared/utils';
+import { Repository } from 'typeorm';
+import { assertIsDefinedOrThrow, isDefined } from 'twenty-shared/utils';
 
 import { CoreEntityCacheService } from 'src/engine/core-entity-cache/services/core-entity-cache.service';
 import {
@@ -17,7 +13,6 @@ import {
 } from 'src/engine/core-modules/auth/auth.exception';
 import { buildUserAuthContext } from 'src/engine/core-modules/auth/utils/build-user-auth-context.util';
 import { UserWorkspaceEntity } from 'src/engine/core-modules/user-workspace/user-workspace.entity';
-import { isActiveUserWorkspace } from 'src/engine/core-modules/user-workspace/utils/is-active-user-workspace.util';
 import { fromUserEntityToFlat } from 'src/engine/core-modules/user/utils/from-user-entity-to-flat.util';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 
@@ -29,25 +24,6 @@ export class UserWorkspaceAuthContextService {
     private readonly workspaceCacheService: WorkspaceCacheService,
     private readonly coreEntityCacheService: CoreEntityCacheService,
   ) {}
-
-  async findActiveUserWorkspaces({
-    workspaceId,
-    userWorkspaceIds,
-  }: {
-    workspaceId: string;
-    userWorkspaceIds: string[];
-  }): Promise<UserWorkspaceEntity[]> {
-    if (!isNonEmptyString(workspaceId) || !isNonEmptyArray(userWorkspaceIds)) {
-      return [];
-    }
-
-    const userWorkspaces = await this.userWorkspaceRepository.find({
-      where: { id: In(userWorkspaceIds), workspaceId },
-      relations: { user: true },
-    });
-
-    return userWorkspaces.filter(isActiveUserWorkspace);
-  }
 
   async resolveWorkspaceMember({
     workspaceId,
@@ -120,7 +96,12 @@ export class UserWorkspaceAuthContextService {
       where: { id: userWorkspaceId, workspaceId },
       relations: { user: true },
     });
-    if (!isActiveUserWorkspace(userWorkspace)) {
+    if (
+      !isDefined(userWorkspace) ||
+      !isDefined(userWorkspace.user) ||
+      userWorkspace.user.disabled ||
+      isDefined(userWorkspace.user.deletedAt)
+    ) {
       throw new AuthException(
         'User workspace not found',
         AuthExceptionCode.UNAUTHENTICATED,

@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { doNotTranslate } from 'twenty-shared/i18n';
+import { FeatureFlagKey } from 'twenty-shared/types';
+import { isDefined } from 'twenty-shared/utils';
 
 import { CacheLockService } from 'src/engine/core-modules/cache-lock/cache-lock.service';
+import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 
 import { AgentChatService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat.service';
+import { AgentChatSharingService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-sharing.service';
 import { AgentChatThreadService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-thread.service';
 import { type AgentChatThreadAccessArgs } from 'src/engine/metadata-modules/ai/ai-chat/types/agent-chat-thread-access-args.type';
 import { formatErrorWithCause } from 'src/engine/metadata-modules/ai/ai-chat/utils/format-error-with-cause.util';
@@ -27,6 +31,8 @@ export class AgentChatParticipationService {
     private readonly chatService: AgentChatService,
     private readonly threadService: AgentChatThreadService,
     private readonly cacheLockService: CacheLockService,
+    private readonly featureFlagService: FeatureFlagService,
+    private readonly sharingService: AgentChatSharingService,
   ) {}
 
   runWithMessageLock<TResult>({
@@ -48,6 +54,57 @@ export class AgentChatParticipationService {
             AGENT_CHAT_MESSAGE_LOCK_RETRY_INTERVAL_MS,
         ),
       },
+    );
+  }
+
+  async sendMessageWithParticipation<TSentMessage extends object>({
+    sendMessage,
+    ...participationArgs
+  }: AgentChatMessageParticipationArgs & {
+    sendMessage: (isAiChatInboxEnabled: boolean) => Promise<TSentMessage>;
+  }): Promise<
+    TSentMessage & { recipientParticipantWorkspaceMemberIds: string[] }
+  > {
+    const isAiChatInboxEnabled = await this.featureFlagService.isFeatureEnabled(
+      FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED,
+      participationArgs.workspaceId,
+    );
+
+    if (!isAiChatInboxEnabled) {
+      const sentMessage = await sendMessage(false);
+
+      return { ...sentMessage, recipientParticipantWorkspaceMemberIds: [] };
+    }
+
+    const sentMessage = await sendMessage(true).catch(
+      async (error: unknown) => {
+        await this.completeMessage(participationArgs);
+
+        throw error;
+      },
+    );
+
+    const recipientParticipantWorkspaceMemberIds =
+      await this.completeMessage(participationArgs);
+
+    return { ...sentMessage, recipientParticipantWorkspaceMemberIds };
+  }
+
+  async findEligibleReplyParticipantWorkspaceMemberIds({
+    isAiChatInboxEnabled,
+    isAssistantMentioned,
+    ...eligibilityLookup
+  }: AgentChatThreadAccessArgs & {
+    isAiChatInboxEnabled: boolean;
+    isAssistantMentioned?: boolean | null;
+    memberIds: string[];
+  }): Promise<string[]> {
+    if (!isAiChatInboxEnabled || !isDefined(isAssistantMentioned)) {
+      return [];
+    }
+
+    return this.sharingService.findEligibleParticipantWorkspaceMemberIds(
+      eligibilityLookup,
     );
   }
 

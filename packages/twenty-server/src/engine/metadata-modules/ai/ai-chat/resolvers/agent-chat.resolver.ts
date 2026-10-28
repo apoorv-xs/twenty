@@ -16,7 +16,6 @@ import {
 import GraphQLJSON from 'graphql-type-json';
 import { PermissionFlagType } from 'twenty-shared/constants';
 import { isDefined } from 'twenty-shared/utils';
-import { FeatureFlagKey } from 'twenty-shared/types';
 
 import { MetadataResolver } from 'src/engine/api/graphql/graphql-config/decorators/metadata-resolver.decorator';
 import { UUIDScalarType } from 'src/engine/api/graphql/workspace-schema-builder/graphql-types/scalars';
@@ -54,7 +53,6 @@ import { AiGraphqlApiExceptionInterceptor } from 'src/engine/metadata-modules/ai
 import { AuthGraphqlApiExceptionFilter } from 'src/engine/core-modules/auth/filters/auth-graphql-api-exception.filter';
 import { AgentTurnRecorderService } from 'src/engine/metadata-modules/ai/ai-history/services/agent-turn-recorder.service';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
-import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 
 @UseGuards(
   AuthPrincipalGuard({
@@ -91,7 +89,6 @@ export class AgentChatResolver {
     private readonly threadLifecycleService: AgentChatThreadLifecycleService,
     private readonly turnRecorderService: AgentTurnRecorderService,
     private readonly workspaceCacheService: WorkspaceCacheService,
-    private readonly featureFlagService: FeatureFlagService,
     private readonly messageReactionService: AgentChatMessageReactionService,
     private readonly replyPolicyService: AgentChatReplyPolicyService,
     private readonly participationService: AgentChatParticipationService,
@@ -239,12 +236,6 @@ export class AgentChatResolver {
       workspaceId: workspace.id,
       threadId,
       work: async () => {
-        const isAiChatInboxEnabled =
-          await this.featureFlagService.isFeatureEnabled(
-            FeatureFlagKey.IS_AI_CHAT_INBOX_ENABLED,
-            workspace.id,
-          );
-
         await this.threadService.createThreadIfMissing({
           threadId,
           workspaceMemberId,
@@ -252,45 +243,33 @@ export class AgentChatResolver {
           channelId: channelId ?? undefined,
         });
 
-        const participationArguments = {
-          threadId,
-          messageId,
-          workspaceMemberId,
-          workspaceId: workspace.id,
-          isAssistantMentioned: isAssistantMentioned ?? false,
-          recipientWorkspaceMemberIds: recipientWorkspaceMemberIds ?? [],
-        };
-        const sentMessage = await this.sendChatMessageToThread({
-          threadId,
-          text,
-          messageId,
-          browsingContext,
-          modelId,
-          fileAttachments,
-          userWorkspaceId,
-          workspaceMemberId,
-          workspace,
-          shouldAssistantReply: shouldAssistantReply ?? true,
-          isAiChatInboxEnabled,
-          isAssistantMentioned,
-          initialIsAssistantParticipant: isAssistantParticipant ?? true,
-          mentionedWorkspaceMemberIds: mentionedWorkspaceMemberIds ?? [],
-          recipientWorkspaceMemberIds: recipientWorkspaceMemberIds ?? [],
-        }).catch(async (error: unknown) => {
-          if (isAiChatInboxEnabled) {
-            await this.participationService.completeMessage(
-              participationArguments,
-            );
-          }
-
-          throw error;
-        });
-
-        const recipientParticipantWorkspaceMemberIds = isAiChatInboxEnabled
-          ? await this.participationService.completeMessage(
-              participationArguments,
-            )
-          : [];
+        const sentMessage =
+          await this.participationService.sendMessageWithParticipation({
+            threadId,
+            messageId,
+            workspaceMemberId,
+            workspaceId: workspace.id,
+            isAssistantMentioned: isAssistantMentioned ?? false,
+            recipientWorkspaceMemberIds: recipientWorkspaceMemberIds ?? [],
+            sendMessage: (isAiChatInboxEnabled) =>
+              this.sendChatMessageToThread({
+                threadId,
+                text,
+                messageId,
+                browsingContext,
+                modelId,
+                fileAttachments,
+                userWorkspaceId,
+                workspaceMemberId,
+                workspace,
+                shouldAssistantReply: shouldAssistantReply ?? true,
+                isAiChatInboxEnabled,
+                isAssistantMentioned,
+                initialIsAssistantParticipant: isAssistantParticipant ?? true,
+                mentionedWorkspaceMemberIds: mentionedWorkspaceMemberIds ?? [],
+                recipientWorkspaceMemberIds: recipientWorkspaceMemberIds ?? [],
+              }),
+          });
 
         const mentionedParticipantWorkspaceMemberIds =
           await this.threadService.addMentionedParticipants({
@@ -303,7 +282,6 @@ export class AgentChatResolver {
         return {
           ...sentMessage,
           mentionedParticipantWorkspaceMemberIds,
-          recipientParticipantWorkspaceMemberIds,
         };
       },
     });
@@ -365,14 +343,16 @@ export class AgentChatResolver {
       ...(isInitialMessage ? recipientWorkspaceMemberIds : []),
     ];
     const eligibleWorkspaceMemberIds =
-      await this.findEligibleParticipantWorkspaceMemberIdsForReply({
-        isAiChatInboxEnabled,
-        isAssistantMentioned,
-        threadId,
-        workspaceId: workspace.id,
-        workspaceMemberId,
-        memberIds: candidateWorkspaceMemberIds,
-      });
+      await this.participationService.findEligibleReplyParticipantWorkspaceMemberIds(
+        {
+          isAiChatInboxEnabled,
+          isAssistantMentioned,
+          threadId,
+          workspaceId: workspace.id,
+          workspaceMemberId,
+          memberIds: candidateWorkspaceMemberIds,
+        },
+      );
     const isAssistantParticipating =
       !canStoreAssistantParticipation ||
       (isInitialMessage
@@ -595,25 +575,6 @@ export class AgentChatResolver {
   @ResolveField(() => Float)
   totalOutputCredits(@Parent() thread: AgentChatThreadWorkspaceEntity): number {
     return toDisplayCredits(Number(thread.totalOutputCredits));
-  }
-
-  private async findEligibleParticipantWorkspaceMemberIdsForReply({
-    isAiChatInboxEnabled,
-    isAssistantMentioned,
-    ...args
-  }: {
-    isAiChatInboxEnabled: boolean;
-    isAssistantMentioned?: boolean | null;
-    threadId: string;
-    workspaceId: string;
-    workspaceMemberId: string;
-    memberIds: string[];
-  }): Promise<string[]> {
-    if (!isAiChatInboxEnabled || !isDefined(isAssistantMentioned)) {
-      return [];
-    }
-
-    return this.sharingService.findEligibleParticipantWorkspaceMemberIds(args);
   }
 
   // the caller reads the thread after this, so it sees the reaped stream as released
