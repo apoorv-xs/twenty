@@ -1,6 +1,7 @@
 import { getAgentChatThreadParticipantFromRecord } from '@/ai/utils/getAgentChatThreadParticipantFromRecord';
 
 const RESOLVED_PARTICIPANT = {
+  __typename: 'AgentChatThreadParticipant',
   id: 'participant',
   threadId: 'thread',
   lastReadAt: '2026-10-01T10:00:00.000Z',
@@ -17,7 +18,6 @@ describe('getAgentChatThreadParticipantFromRecord', () => {
     expect(
       getAgentChatThreadParticipantFromRecord({
         ...RESOLVED_PARTICIPANT,
-        __typename: 'AgentChatThreadParticipant',
         workspaceMemberId: 'workspace-member',
       }),
     ).toEqual(RESOLVED_PARTICIPANT);
