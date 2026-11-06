@@ -67,7 +67,16 @@ export const useSetViewTypeFromLayoutOptionsMenu = () => {
             );
           }
 
-          const mainGroupByFieldMetadataId = availableFieldsForGrouping[0].id;
+          const isCurrentMainGroupByFieldValid =
+            isDefined(currentView.mainGroupByFieldMetadataId) &&
+            availableFieldsForGrouping.some(
+              (field) => field.id === currentView.mainGroupByFieldMetadataId,
+            );
+
+          const mainGroupByFieldMetadataId = isCurrentMainGroupByFieldValid
+            ? currentView.mainGroupByFieldMetadataId
+            : availableFieldsForGrouping[0].id;
+
           updateCurrentViewParams.mainGroupByFieldMetadataId =
             mainGroupByFieldMetadataId;
 
@@ -84,7 +93,6 @@ export const useSetViewTypeFromLayoutOptionsMenu = () => {
           if (shouldChangeIcon(currentView.icon, currentView.type)) {
             updateCurrentViewParams.icon = viewTypeIconKeyMapping(viewType);
           }
-          updateCurrentViewParams.mainGroupByFieldMetadataId = null;
           await updateCurrentView(updateCurrentViewParams);
           setRecordIndexViewType(viewType);
           return;
