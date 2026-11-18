@@ -1082,6 +1082,9 @@ export const STANDARD_OBJECTS = {
       searchVectorGinIndex: {
         universalIdentifier: 'a86b32b3-01d3-4302-a152-8b7f247db7b4',
       },
+      positionIndex: {
+        universalIdentifier: 'e53c457d-f68e-4a61-9c60-31804d9c7921',
+      },
     },
     views: {
       allTasks: buildStandardObjectIndexView({

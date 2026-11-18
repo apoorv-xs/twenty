@@ -3468,6 +3468,9 @@ exports[`STANDARD_OBJECTS universal identifiers should never change without an e
       "assigneeIdIndex": {
         "universalIdentifier": "f48fa3b1-0cec-44da-a9e5-f8a5e766637e",
       },
+      "positionIndex": {
+        "universalIdentifier": "e53c457d-f68e-4a61-9c60-31804d9c7921",
+      },
       "searchVectorGinIndex": {
         "universalIdentifier": "a86b32b3-01d3-4302-a152-8b7f247db7b4",
       },
